@@ -1,0 +1,23 @@
+{
+  "name": "Shelby Private Notes",
+  
+  "version": "0.1.0",
+  
+  "description": "Add private notes to ShelbyNEXT",
+  
+  "manifest_version": 2,
+
+  "incognito": "split",
+  
+  "permissions": ["https://*.shelbynextchms.com/members/view/*", "storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.shelbynextchms.com/members/view/*"],
+      "js": ["privateNotes.js"]
+    }
+  ],
+
+  "icons": {
+    "128": "icon.png"
+  }
+}
