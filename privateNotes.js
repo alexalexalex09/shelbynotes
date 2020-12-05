@@ -2,19 +2,15 @@ var el = `
 <div id="pn_noteButton" onclick="pn_show()">Show Private Note</div>
 <div id="pn_notification" class="off"></div>
 <div id="pn_noteContainer" class="off">
-  <div id="pn_browse"></div>
   <div id="pn_closeButton" onclick="pn_hide()">X</div>
-  <form id="pn_form">
-    <textarea id="pn_textarea">Loading...</textarea>
-    <input type="submit"></input>
-  </form>
+  <div id="pn_entries"></div>
   <div id="pn_unsaved"></div>
   <div id="pn_counter" class="off">0</counter>
 </div>
 `;
 el = `<div id="pn_container">` + el + `</div>`;
 document.body.appendChild(pn_htmlToElem(el));
-pn_getLatestText();
+pn_getAllEntries();
 
 /**************/
 /* Functions  */
@@ -43,16 +39,24 @@ function pn_getID() {
   return id;
 }
 
-function pn_getLatestText() {
+function pn_getAllEntries() {
   var id = pn_getID();
+
+  //clear chrome storage
+  /*chrome.storage.sync.remove(id, function () {
+    localStorage.removeItem(id);
+    console.log("Value is cleared");
+  });*/
+  //end clear storage
+
   var localText = localStorage.getItem(id);
-  var getStorage = true;
+  var entries = [];
   if (localText != null) {
-    document.querySelector("#pn_notification").innerHTML = "<i>1</i>";
+    document.querySelector("#pn_notification").innerHTML = "<i>!</i>";
     document.querySelector("#pn_notification").classList.remove("off");
     getStorage = false;
     console.log({ localText });
-    document.querySelector("#pn_textarea").value = localText;
+    entries.push({ date: "Draft", text: localText });
     document.querySelector(
       "#pn_unsaved"
     ).innerHTML = `Unsaved changes have been recovered. <button id="pn_discard">Discard Changes</button>`;
@@ -65,100 +69,222 @@ function pn_getLatestText() {
           getStorage = true;
           document.querySelector("#pn_unsaved").innerHTML = "";
           console.log("You said yes!");
-          pn_getSyncStorage();
+          pn_getSyncStorage([]);
         }
       });
+    pn_getSyncStorage(entries);
   } else {
-    pn_getSyncStorage();
+    pn_getSyncStorage(entries);
   }
 }
 
-function pn_getSyncStorage() {
+function pn_dateSort(a, b) {
+  a = new Date(a.date);
+  b = new Date(b.date);
+  return b - a;
+}
+
+function getNowString() {
+  //Get current time for the default draft entry
+  var now = new Date();
+  return now.toLocaleDateString() + " " + now.toLocaleTimeString();
+}
+
+function pn_getSyncStorage(entries) {
   var id = pn_getID();
-  chrome.storage.sync.get([id], function (result) {
+  chrome.storage.sync.get([id], function (obj) {
     console.log("result found");
-    console.log({ result });
-    obj = result;
-    console.log(
-      obj == null,
-      typeof obj == "undefined",
-      typeof obj[id] == "undefined"
-    );
-    //var obj = JSON.parse(localStorage.getItem(id));
+    console.log({ obj });
+
+    var nowString = getNowString();
+
+    //If no entries are found in sync
+    var firstEntry = false;
     if (
       obj == null ||
       typeof obj == "undefined" ||
-      typeof obj[id] == "undefined"
+      typeof obj[id] == "undefined" // Need to test if an empty object was returned
     ) {
-      document.querySelector("#pn_notification").innerHTML = "";
-      document.querySelector("#pn_notification").classList.add("off");
-      document.querySelector("#pn_textarea").value = "";
+      firstEntry = true;
+    } else {
+      //if an entry has been found
+      //get the relevant individual's info
+      // andsort the notes for that individual by date
+      obj = JSON.parse(obj[id]);
+      if (obj.notes.length == 0) {
+        firstEntry = true;
+      }
+    }
+    if (firstEntry) {
+      // Only remove the notification if there is no draft
+
+      console.log({ entries });
+      console.log(entries.length);
+      if (entries.length == 0) {
+        document.querySelector("#pn_notification").innerHTML = "";
+        document.querySelector("#pn_notification").classList.add("off");
+        document.querySelector("#pn_entries").innerHTML =
+          `<div class="draft entry"><div class="date">` +
+          nowString +
+          `</div><form class="pn_previewText"><textarea></textarea><input type="submit"></input><button>Cancel</button></form></div>`;
+        bindEntries();
+      } else {
+        document.querySelector("#pn_entries").innerHTML =
+          `<div class="entry"><div class="date">Draft</div><form class="pn_previewText"><textarea>` +
+          entries[0].text +
+          `</textarea><input type="submit"></input><button>Cancel</button></form></div>`;
+        bindEntries();
+      }
       return null;
     } else {
+      //set the notification
+      if (document.querySelector("#pn_notification").innerHTML != "<i>!</i>") {
+        document.querySelector("#pn_notification").innerHTML = obj.notes.length;
+        document.querySelector("#pn_notification").classList.remove("off");
+      }
+
+      //add the sync info to the existing draft entry, if any
+      obj.notes.sort(pn_dateSort);
+      console.log(entries);
+      entries = entries.concat(obj.notes);
+
+      //Create the HTML string to insert into the main area
       console.log({ obj });
-      obj = JSON.parse(obj[id]);
-      obj.notes.sort((a, b) => {
-        return b.date - a.date;
+      console.log(entries[0], entries[1]);
+      var entryString = ``;
+      if (entries[0].date == "Draft") {
+        entryString +=
+          `<div class="draft entry"><div class="date">Draft</div><form class="pn_previewText"><textarea>` +
+          entries[0].text +
+          `</textarea><input type="submit"></input><button>Cancel</button></form></div>`;
+      } else {
+        entryString +=
+          `<div class="draft entry"><div class="date">` +
+          nowString +
+          `</div><form class="pn_previewText"><textarea></textarea><input type="submit"></input><button>Cancel</button></form></div>`;
+        entryString += entryStringGen(entries[0]);
+      }
+      entries.splice(0, 1);
+      entries.forEach((e) => {
+        entryString += entryStringGen(e);
       });
-      console.log({ obj });
-      document.querySelector("#pn_notification").innerHTML = obj.notes.length;
-      document.querySelector("#pn_notification").classList.remove("off");
-      var date = new Date();
-      var dateString =
-        date.toLocaleDateString() + " " + date.toLocaleTimeString();
-      document.querySelector("#pn_textarea").value = obj.notes[0].text;
-      document.querySelector("#pn_browse").innerHTML =
-        `<button id="pn_back"><<</button><button id="pn_forward">>></button><div id="pn_date">` +
-        dateString +
-        `</div>`;
-      document.querySelector("#pn_back").addEventListener("click", function () {
-        var counter = document.querySelector("#pn_counter").innerHTML;
-        counter = Number(counter) + 1;
-        if (typeof obj.notes[counter] != "undefined") {
-          document.querySelector("#pn_textarea").value =
-            obj.notes[counter].text;
-          document.querySelector("#pn_counter").innerHTML = counter;
-          var date = new Date(Number(obj.notes[counter].date));
-          console.log(typeof date);
-          var dateString =
-            date.toLocaleDateString() + " " + date.toLocaleTimeString();
-          document.querySelector("#pn_date").innerHTML = dateString;
-        }
-      });
-      document
-        .querySelector("#pn_forward")
-        .addEventListener("click", function () {
-          var counter = document.querySelector("#pn_counter").innerHTML;
-          if (counter > 0) {
-            counter = Number(counter) - 1;
-            if (typeof obj.notes[counter] != "undefined") {
-              document.querySelector("#pn_textarea").value =
-                obj.notes[counter].text;
-              document.querySelector("#pn_counter").innerHTML = counter;
-              var date = new Date(Number(obj.notes[counter].date));
-              var dateString =
-                date.toLocaleDateString() + " " + date.toLocaleTimeString();
-              document.querySelector("#pn_date").innerHTML = dateString;
-            }
-          }
-        });
+      document.querySelector("#pn_entries").innerHTML = entryString;
+      bindEntries();
     }
   });
 }
 
-document.querySelector("#pn_form").addEventListener("submit", function (e) {
-  e.preventDefault();
-  pn_saveData();
-});
+function entryStringGen(entry) {
+  return (
+    `<div class="entry"><div class="date">` +
+    entry.date +
+    `</div><form class="pn_previewText"><textarea>` +
+    entry.text +
+    `</textarea><input type="submit"></input><button>Cancel</button></form><div class="pn_delete">x</div></div>`
+  );
+}
 
-document.querySelector("#pn_textarea").addEventListener("input", function () {
+function stopEditing(ev) {
+  ev.preventDefault();
+  ev.currentTarget.parentElement.classList.remove("editing");
+}
+
+function prepSave(ev) {
+  ev.preventDefault();
+  ev.currentTarget.classList.remove("editing");
+  console.log("date: ", ev.currentTarget.parentElement.children[0].innerHTML);
+  var date = new Date(ev.currentTarget.parentElement.children[0].innerHTML);
+  var dateString = date.toLocaleDateString() + " " + date.toLocaleTimeString();
+  ev.currentTarget.parentElement.classList.remove("editing");
+  var entries = ev.currentTarget.parentNode.parentNode.children;
+  var index = Array.from(entries).indexOf(ev.currentTarget.parentNode);
+  index = entries.length - index - 1;
+  console.log(entries.length);
+  console.log({ index });
+  if (index == entries.length - 1) {
+    newest = true;
+  } else {
+    newest = false;
+  }
+  return pn_saveData(
+    dateString,
+    ev.currentTarget.children[0].value,
+    index,
+    newest
+  );
+}
+
+function startEditing(ev) {
+  console.log(ev.currentTarget.parentElement);
+  if (!ev.currentTarget.parentElement.classList.contains("editing")) {
+    ev.currentTarget.parentElement.classList.add("editing");
+  }
+}
+
+function textChanges(ev) {
   var id = pn_getID();
-  var text = document.querySelector("#pn_textarea").value;
+  var text = ev.currentTarget.value;
   console.log({ text });
   localStorage.setItem(id, text);
-});
+}
 
-function pn_saveData() {
+function entryDelete(ev) {
+  var id = pn_getID();
+  var entry = ev.currentTarget.parentNode;
+  var el = ev.currentTarget;
+  var index = Array.from(entry.parentNode.children).indexOf(entry) - 1;
+  console.log({ index });
+  console.log(Array.from(entry.parentNode.children).indexOf(entry));
+  if (index > -1) {
+    chrome.storage.sync.get([id], function (result) {
+      console.log(result);
+      if (typeof result[id] == "undefined") {
+        obj = { notes: [] };
+      } else {
+        obj = JSON.parse(result[id]);
+      }
+      console.log({ obj });
+      obj.notes.sort(pn_dateSort);
+      obj.notes.splice(index, 1);
+      str = JSON.stringify(obj);
+      var toSave = {};
+      toSave[id] = str;
+      chrome.storage.sync.set(toSave, function () {
+        localStorage.removeItem(id);
+        el.parentElement.remove();
+        console.log("Value is set to ", toSave);
+
+        //pn_getSyncStorage();
+      });
+    });
+  } else {
+    //just erase the first text element. Or maybe remove the delete button so this doesn't even get called
+  }
+}
+
+function bindEntries() {
+  document.querySelectorAll(".pn_previewText button").forEach((e) => {
+    e.removeEventListener("click", stopEditing);
+    e.addEventListener("click", stopEditing);
+  });
+  document.querySelectorAll(".pn_previewText").forEach((e) => {
+    e.removeEventListener("submit", prepSave);
+    e.addEventListener("submit", prepSave);
+  });
+  document.querySelectorAll(".pn_previewText textarea").forEach((e) => {
+    e.removeEventListener("click", startEditing);
+    e.removeEventListener("input", textChanges);
+    e.addEventListener("click", startEditing);
+    e.addEventListener("input", textChanges);
+  });
+  document.querySelectorAll(".pn_delete").forEach((e) => {
+    e.removeEventListener("click", entryDelete);
+    e.addEventListener("click", entryDelete);
+  });
+}
+
+function pn_saveData(date, text, index, newest) {
+  console.log({ newest });
   var id = pn_getID();
   chrome.storage.sync.get([id], function (result) {
     console.log(result);
@@ -167,27 +293,40 @@ function pn_saveData() {
     } else {
       obj = JSON.parse(result[id]);
     }
-    var text = document.querySelector("#pn_textarea").value;
-    var date = Date.now().toString();
-    console.log({ obj });
-    obj.notes.push({ date: date, text: text });
+    obj.notes.sort(pn_dateSort);
+    obj.notes[index] = { date: date, text: text };
     str = JSON.stringify(obj);
     var toSave = {};
     toSave[id] = str;
     chrome.storage.sync.set(toSave, function () {
       localStorage.removeItem(id);
-      document.querySelector("#pn_counter").innerHTML = 0;
       console.log("Value is set to ", toSave);
-      pn_getSyncStorage();
+      if (newest) {
+        addNewRow();
+      }
+      //pn_getSyncStorage();
     });
   });
   return false;
 }
 
-const pn_script = document.createElement("script");
-var keyValues = [],
-  global = window; // window for browser environments
+function addNewRow() {
+  var nowString = getNowString();
+  var newDelete = document.createElement("div");
+  newDelete.classList.add("pn_delete");
+  newDelete.innerHTML = "x";
+  document.querySelector(".entry").append(newDelete);
+  var newEl = document.createElement("div");
+  newEl.classList.add("entry");
+  newEl.innerHTML =
+    `<div class="date">` +
+    nowString +
+    `</div><form class="pn_previewText"><textarea></textarea><input type="submit"></input><button>Cancel</button></form>`;
+  document.querySelector("#pn_entries").prepend(newEl);
+  bindEntries();
+}
 
+const pn_script = document.createElement("script");
 var keyValues = [],
   global = window; // window for browser environments
 for (var prop in global) {
@@ -245,13 +384,6 @@ pn_style.innerHTML = `
     cursor: pointer;
 }
 
-#pn_unsaved {
-  position: relative;
-  color: red;
-  bottom: 5px;
-  margin-left: 5rem;
-}
-
 #pn_closeButton {
     text-align: right;
     color: black;
@@ -261,9 +393,17 @@ pn_style.innerHTML = `
     float: right;
 }
 
+#pn_unsaved {
+  position: absolute;
+  color: red;
+  top: 3px;
+  font-size: .8em;
+}
+
 #pn_discard {
   background: #efefef;
   color: black;
+  padding: 0px 2px;
 }
 
 #pn_browse {
@@ -289,6 +429,89 @@ pn_style.innerHTML = `
   left: 12.5rem;
   text-align: center;
   color: white;
+}
+
+#pn_entries {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+  row-gap: 5px; 
+  max-height: calc(100% - 2rem);
+  overflow: auto;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: auto 1fr 1.5rem;
+  align-items: center;
+}
+
+.date {
+  margin-right: 10px;
+}
+
+.pn_previewText {
+  display: grid;
+  align-items: center;
+  grid-template-columns: auto auto 1fr;
+  grid-template-rows: calc(100% - 2rem) 1fr;
+}
+
+.pn_previewText textarea {
+  height: 1.7rem;
+  overflow: hidden;
+  width: 100%;  
+  grid-area: 1/1/3/4;
+  box-sizing: border-box;
+}
+
+form.pn_previewText.editing {
+  position: absolute;
+  bottom: 0;
+  height: calc(100% - 1.9rem);
+  width: calc(100% - 1rem);
+  border-top: 0.4rem solid white;
+  border-right: 5px solid white;
+  box-sizing: content-box;
+  background-color: white;
+}
+
+.pn_previewText.editing textarea {
+  height: 100%;
+  grid-area: 1/1/2/4;
+}
+
+.pn_previewText input, .pn_previewText button {
+  display: none;
+}
+
+.pn_previewText.editing input, .pn_previewText.editing button{
+  display: block
+}
+
+.pn_previewText.editing button {
+  margin-left: 10px;
+  padding: 2px 9px;
+  background-color: rgb(239, 239, 239);
+  border: 1px solid rgb(118, 118, 118);
+  border-radius: 3px;
+}
+
+.pn_delete {
+  background-color: #006980;
+  color: white;
+  border-radius: 55px;
+  width: 1.1rem;
+  height: 1.1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  line-height: 0.9rem;
+  justify-self: center;
+  cursor: pointer;
+}
+
+.editing+.pn_delete {
+  display: none;
 }
 
 `;
