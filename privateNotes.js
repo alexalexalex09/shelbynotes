@@ -1,8 +1,9 @@
+//Create the main layout
 var el = `
 <div id="pn_noteButton" onclick="pn_show()">Show Private Note</div>
 <div id="pn_notification" class="off"></div>
 <div id="pn_noteContainer" class="off">
-  <div id="pn_closeButton" onclick="pn_hide()">X</div>
+  <div id="pn_closeButton" onclick="pn_hide()">Close Notes</div>
   <div id="pn_entries"></div>
   <div id="pn_unsaved"></div>
   <div id="pn_counter" class="off">0</counter>
@@ -10,12 +11,13 @@ var el = `
 `;
 el = `<div id="pn_container">` + el + `</div>`;
 document.body.appendChild(pn_htmlToElem(el));
+//Get entries from Google storage and local storage
 pn_getAllEntries();
 
 /**************/
 /* Functions  */
 /**************/
-/*const scripts = `*/
+//Given an HTML string, return an DOM element
 function pn_htmlToElem(html) {
   let temp = document.createElement("template");
   html = html.trim(); // Never return a space text node as a result
@@ -23,14 +25,17 @@ function pn_htmlToElem(html) {
   return temp.content.firstChild;
 }
 
+//Show the main note container
 function pn_show() {
   document.querySelector("#pn_noteContainer").classList.remove("off");
 }
 
+//hide the note container, leaving only the button visible
 function pn_hide() {
   document.querySelector("#pn_noteContainer").classList.add("off");
 }
 
+//get the ID string from the URL of the page
 function pn_getID() {
   var url = window.location.href;
   var id = url.substr(url.lastIndexOf("/") + 1);
@@ -39,161 +44,243 @@ function pn_getID() {
   return id;
 }
 
+//Get entries from Google storage and local storage
 function pn_getAllEntries() {
   var id = pn_getID();
 
-  //clear chrome storage
+  //uncomment to clear chrome storage
   /*chrome.storage.sync.remove(id, function () {
     localStorage.removeItem(id);
     console.log("Value is cleared");
   });*/
   //end clear storage
 
+  //Get any unsaved draft text from local storage
   var localText = localStorage.getItem(id);
+  //initialize entries array
   var entries = [];
+
+  //If there is a draft
   if (localText != null) {
-    document.querySelector("#pn_notification").innerHTML = "<i>!</i>";
-    document.querySelector("#pn_notification").classList.remove("off");
+    //Set a draft notification ("!") and show the notification
+    pn_notify("!");
+
+    //initialize getStorage to false
     getStorage = false;
-    console.log({ localText });
-    entries.push({ date: "Draft", text: localText });
+    var divider = localText.indexOf("|"); //Where is the divider between the entry indicator and text content in local storage?
+    var index = localText.substr(0, divider); //Get the entry indicator
+    var localText = localText.substr(divider + 1); // Remove the index from localText
+    divider = localText.indexOf("|"); // Get the next divider
+    var draftDate = localText.substr(0, divider); //Get the draft date
+    localText = localText.substr(divider + 1); //Remove the date from localText, leaving only text
+
+    //Add the draft entry to the entries list, is now the only entry
+    //entries.push({ date: "Draft", text: localText });
+
+    //Assign the draft to the draft object
+    var draft = { index: index, text: localText, date: draftDate };
+
+    //Show the draft interface and bind events
     document.querySelector(
       "#pn_unsaved"
-    ).innerHTML = `Unsaved changes have been recovered. <button id="pn_discard">Discard Changes</button>`;
-    document
-      .querySelector("#pn_discard")
-      .addEventListener("click", function () {
-        var res = confirm("Are you sure you want to discard unsaved changes?");
-        if (res) {
-          localStorage.removeItem(id);
-          getStorage = true;
-          document.querySelector("#pn_unsaved").innerHTML = "";
-          console.log("You said yes!");
-          pn_getSyncStorage([]);
-        }
-      });
-    pn_getSyncStorage(entries);
+    ).innerHTML = `Unsaved changes have been recovered.`;
+
+    //Get the rest of the entries
+    pn_getSyncStorage(entries, draft);
   } else {
+    //If there is no draft, just get the entries
     pn_getSyncStorage(entries);
   }
 }
 
+//If there is unsaved work, notify the user before they navigate away
+window.addEventListener("beforeunload", function (ev) {
+  var draft = localStorage.getItem(pn_getID());
+  if (draft != null || draft != "") {
+    ev.preventDefault(); //prevent navigating away
+    ev.returnValue = ""; //Chrome requires this
+  }
+});
+
+//Function to sort by date field (as String) descending
 function pn_dateSort(a, b) {
   a = new Date(a.date);
   b = new Date(b.date);
   return b - a;
 }
 
+//Get the current time and format it before returning a string
 function getNowString() {
   //Get current time for the default draft entry
   var now = new Date();
   return now.toLocaleDateString() + " " + now.toLocaleTimeString();
 }
 
-function pn_getSyncStorage(entries) {
+//Get entries from Google Sync storage
+function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
   var id = pn_getID();
+  console.log(draft.index, ", ", draft.text, ", ", draft.date);
   chrome.storage.sync.get([id], function (obj) {
-    console.log("result found");
-    console.log({ obj });
+    //console.log("result found");
+    //console.log({ obj });
 
     var nowString = getNowString();
 
-    //If no entries are found in sync
+    //Initialize firstEntry to false
     var firstEntry = false;
     if (
       obj == null ||
       typeof obj == "undefined" ||
       typeof obj[id] == "undefined" // Need to test if an empty object was returned
     ) {
+      //If there is no object, or it's not correctly formatted, there are no entries
       firstEntry = true;
     } else {
       //if an entry has been found
       //get the relevant individual's info
-      // andsort the notes for that individual by date
       obj = JSON.parse(obj[id]);
+
+      //If there are no notes for that person, this is the first entry
       if (obj.notes.length == 0) {
         firstEntry = true;
       }
     }
+
+    //Now that we know if this is the first entry or not, initialize the entries
     if (firstEntry) {
       // Only remove the notification if there is no draft
+      //console.log({ entries });
+      //console.log(entries.length);
 
-      console.log({ entries });
-      console.log(entries.length);
-      if (entries.length == 0) {
-        document.querySelector("#pn_notification").innerHTML = "";
-        document.querySelector("#pn_notification").classList.add("off");
+      if (Number(draft.index) != 0) {
+        //This tests to see if we added a draft to entries in pn_getAllEntries()
+        //If the draft wasn't the first entry (in this case it could only be 0 or -1), initialize the first entry as a blank draft
+        pn_notify("");
         document.querySelector("#pn_entries").innerHTML =
           `<div class="draft entry"><div class="date">` +
           nowString +
-          `</div><form class="pn_previewText"><textarea></textarea><input type="submit"></input><button>Cancel</button></form></div>`;
+          `</div><form class="pn_previewText"><textarea></textarea><input type="submit" value="Save"></input><button>Cancel</button></form></div>`;
         bindEntries();
       } else {
+        //If the first entry was a draft, put the text from the first array item in entries (the draft) into the first entry on the page
+        console.log("First entry was a draft");
         document.querySelector("#pn_entries").innerHTML =
-          `<div class="entry"><div class="date">Draft</div><form class="pn_previewText"><textarea>` +
-          entries[0].text +
-          `</textarea><input type="submit"></input><button>Cancel</button></form></div>`;
+          `<div class="entry"><div class="date">` +
+          draft.date +
+          `</div><form class="pn_previewText editing"><textarea>` +
+          draft.text +
+          `</textarea><input type="submit" value="Save"></input><button>Cancel</button></form></div>`;
         bindEntries();
       }
+
+      //Since this is the first entry for this individual, we don't need to do anything else
       return null;
     } else {
+      //If this isn't the first entry for this individual:
       //set the notification
-      if (document.querySelector("#pn_notification").innerHTML != "<i>!</i>") {
-        document.querySelector("#pn_notification").innerHTML = obj.notes.length;
-        document.querySelector("#pn_notification").classList.remove("off");
+      if (document.querySelector("#pn_notification").innerHTML != "!") {
+        pn_notify(obj.notes.length);
       }
 
-      //add the sync info to the existing draft entry, if any
+      //Sort notes from Sync by date
       obj.notes.sort(pn_dateSort);
-      console.log(entries);
+      //console.log(entries);
+      //Add sync notes to the existing draft in the draft, if any
       entries = entries.concat(obj.notes);
 
       //Create the HTML string to insert into the main area
-      console.log({ obj });
-      console.log(entries[0], entries[1]);
+      //console.log({ obj });
+      //console.log(entries[0], entries[1]);
       var entryString = ``;
-      if (entries[0].date == "Draft") {
+
+      //if the draft entry was the first entry, put its text in the first entry
+      if (Number(draft.index) == 0) {
         entryString +=
-          `<div class="draft entry"><div class="date">Draft</div><form class="pn_previewText"><textarea>` +
-          entries[0].text +
+          `<div class="draft entry"><div class="date">` +
+          draft.date +
+          `</div><form class="pn_previewText editing"><textarea>` +
+          draft.text +
           `</textarea><input type="submit"></input><button>Cancel</button></form></div>`;
       } else {
+        //if not, set the first entry to be blank
         entryString +=
           `<div class="draft entry"><div class="date">` +
           nowString +
-          `</div><form class="pn_previewText"><textarea></textarea><input type="submit"></input><button>Cancel</button></form></div>`;
-        entryString += entryStringGen(entries[0]);
+          `</div><form class="pn_previewText"><textarea></textarea><input type="submit" value="Save"></input><button>Cancel</button></form></div>`;
       }
-      entries.splice(0, 1);
-      entries.forEach((e) => {
-        entryString += entryStringGen(e);
+
+      //Draft index didn't include the extra draft element we inserted on this page load, so reduce it by one
+      draft.index = Number(draft.index) - 1;
+      //Then iterate over the rest, adding them to the string
+      entries.forEach((e, i) => {
+        console.log(i == draft.index, i);
+        if (i == draft.index) {
+          console.log("text: " + draft.text);
+          entryString += entryStringGen(draft, true);
+        } else {
+          entryString += entryStringGen(e);
+        }
       });
+
+      //Finally, insert the string and bind all the events
       document.querySelector("#pn_entries").innerHTML = entryString;
       bindEntries();
     }
   });
 }
 
-function entryStringGen(entry) {
+//Generate a generic entry as an HTML string
+function entryStringGen(entry, editing = false) {
+  console.log(entry);
+  if (editing) {
+    editing = " editing";
+  } else {
+    editing = "";
+  }
   return (
     `<div class="entry"><div class="date">` +
     entry.date +
-    `</div><form class="pn_previewText"><textarea>` +
+    `</div><form class="pn_previewText` +
+    editing +
+    `"><textarea>` +
     entry.text +
-    `</textarea><input type="submit"></input><button>Cancel</button></form><div class="pn_delete">x</div></div>`
+    `</textarea><input type="submit" value="Save"></input><button>Cancel</button></form><div class="pn_delete">x</div></div>`
   );
 }
 
+//Go back to the main entry interface when done editing
 function stopEditing(ev) {
   ev.preventDefault();
-  ev.currentTarget.parentElement.classList.remove("editing");
+  //Check if the local save of the current Draft (before editing) is the same as the current value (i.e., there have been no changes)
+  if (
+    localStorage.getItem("currentDraft") !=
+    ev.currentTarget.parentElement.children[0].value
+  ) {
+    //If there have been changes, make the user confirm the discard
+    var res = confirm("Are you sure you want to discard unsaved changes?");
+    if (res) {
+      //If they confirm, revert the element to its previous value as recorded by the currentDraft item in local storage
+      ev.currentTarget.parentElement.children[0].value = localStorage.getItem(
+        "currentDraft"
+      );
+      ev.currentTarget.parentElement.classList.remove("editing");
+      document.querySelector("#pn_unsaved").remove();
+    }
+  } else {
+    document.querySelector("#pn_unsaved").remove();
+    ev.currentTarget.parentElement.classList.remove("editing");
+  }
 }
 
 function prepSave(ev) {
   ev.preventDefault();
   ev.currentTarget.classList.remove("editing");
   console.log("date: ", ev.currentTarget.parentElement.children[0].innerHTML);
-  var date = new Date(ev.currentTarget.parentElement.children[0].innerHTML);
+  if (ev.currentTarget.parentElement.children[0].innerHTML == "Draft") {
+    date = new Date(Date.now());
+  } else {
+    var date = new Date(ev.currentTarget.parentElement.children[0].innerHTML);
+  }
   var dateString = date.toLocaleDateString() + " " + date.toLocaleTimeString();
   ev.currentTarget.parentElement.classList.remove("editing");
   var entries = ev.currentTarget.parentNode.parentNode.children;
@@ -215,9 +302,10 @@ function prepSave(ev) {
 }
 
 function startEditing(ev) {
-  console.log(ev.currentTarget.parentElement);
   if (!ev.currentTarget.parentElement.classList.contains("editing")) {
     ev.currentTarget.parentElement.classList.add("editing");
+    localStorage.setItem("currentDraft", ev.currentTarget.value);
+    var a = ev.currentTarget.parentElement.parentElement;
   }
 }
 
@@ -225,7 +313,13 @@ function textChanges(ev) {
   var id = pn_getID();
   var text = ev.currentTarget.value;
   console.log({ text });
-  localStorage.setItem(id, text);
+  //Get the index of the current .entry item
+  var index = Array.from(
+    ev.currentTarget.parentElement.parentElement.parentElement.children
+  ).indexOf(ev.currentTarget.parentElement.parentElement);
+  //Get the date of the current .entry item
+  var date = ev.currentTarget.parentElement.parentElement.children[0].innerHTML;
+  localStorage.setItem(id, index + "|" + date + "|" + text);
 }
 
 function entryDelete(ev) {
@@ -302,7 +396,12 @@ function pn_saveData(date, text, index, newest) {
       localStorage.removeItem(id);
       console.log("Value is set to ", toSave);
       if (newest) {
-        addNewRow();
+        if (document.querySelector(".draft") != null) {
+          document.querySelector(".draft .date").innerHTML = date;
+          document.querySelector(".draft").classList.remove("draft");
+          document.querySelector("#pn_unsaved").remove();
+        }
+        pn_addNewRow();
       }
       //pn_getSyncStorage();
     });
@@ -310,7 +409,7 @@ function pn_saveData(date, text, index, newest) {
   return false;
 }
 
-function addNewRow() {
+function pn_addNewRow() {
   var nowString = getNowString();
   var newDelete = document.createElement("div");
   newDelete.classList.add("pn_delete");
@@ -321,9 +420,19 @@ function addNewRow() {
   newEl.innerHTML =
     `<div class="date">` +
     nowString +
-    `</div><form class="pn_previewText"><textarea></textarea><input type="submit"></input><button>Cancel</button></form>`;
+    `</div><form class="pn_previewText"><textarea></textarea><input type="submit" value="Save"></input><button>Cancel</button></form>`;
   document.querySelector("#pn_entries").prepend(newEl);
   bindEntries();
+}
+
+function pn_notify(notification) {
+  if (notification == "" || Number(notification) == 0) {
+    console.log("Tried to set notification to 0 or blank: ", notification);
+    document.querySelector("#pn_notification").classList.add("off");
+  } else {
+    document.querySelector("#pn_notification").innerHTML = notification;
+    document.querySelector("#pn_notification").classList.remove("off");
+  }
 }
 
 const pn_script = document.createElement("script");
@@ -385,12 +494,15 @@ pn_style.innerHTML = `
 }
 
 #pn_closeButton {
-    text-align: right;
-    color: black;
-    font-weight: bold;
-    cursor: pointer;
-    width: 1rem;
-    float: right;
+  text-align: right;
+  color: white;
+  cursor: pointer;
+  width: auto;
+  float: right;
+  background-color: #006980;
+  padding: 1px 7px;
+  border-radius: 3px;
+  margin-bottom: 5px;
 }
 
 #pn_unsaved {
@@ -455,6 +567,7 @@ pn_style.innerHTML = `
   align-items: center;
   grid-template-columns: auto auto 1fr;
   grid-template-rows: calc(100% - 2rem) 1fr;
+  transition: all .1s
 }
 
 .pn_previewText textarea {
@@ -463,14 +576,14 @@ pn_style.innerHTML = `
   width: 100%;  
   grid-area: 1/1/3/4;
   box-sizing: border-box;
+  transition: all .1s;
 }
 
 form.pn_previewText.editing {
   position: absolute;
   bottom: 0;
-  height: calc(100% - 1.9rem);
+  height: calc(100% - 2.1rem);
   width: calc(100% - 1rem);
-  border-top: 0.4rem solid white;
   border-right: 5px solid white;
   box-sizing: content-box;
   background-color: white;
