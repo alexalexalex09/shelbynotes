@@ -94,13 +94,13 @@ function pn_getAllEntries() {
 }
 
 //If there is unsaved work, notify the user before they navigate away
-window.addEventListener("beforeunload", function (ev) {
+/*window.addEventListener("beforeunload", function (ev) {
   var draft = localStorage.getItem(pn_getID());
   if (draft != null || draft != "") {
     ev.preventDefault(); //prevent navigating away
     ev.returnValue = ""; //Chrome requires this
   }
-});
+});*/
 
 //Function to sort by date field (as String) descending
 function pn_dateSort(a, b) {
