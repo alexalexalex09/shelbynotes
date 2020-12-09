@@ -395,11 +395,11 @@ function pn_saveData(date, text, index, newest) {
     chrome.storage.sync.set(toSave, function () {
       localStorage.removeItem(id);
       console.log("Value is set to ", toSave);
+      document.querySelector("#pn_unsaved").remove();
       if (newest) {
         if (document.querySelector(".draft") != null) {
           document.querySelector(".draft .date").innerHTML = date;
           document.querySelector(".draft").classList.remove("draft");
-          document.querySelector("#pn_unsaved").remove();
         }
         pn_addNewRow();
       }
