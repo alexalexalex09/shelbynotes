@@ -40,7 +40,7 @@ function pn_getID() {
   var url = window.location.href;
   var id = url.substr(url.lastIndexOf("/") + 1);
   id = id.replace(/[^0-9]/, "");
-  console.log({ id });
+  //console.log({ id });
   return id;
 }
 
@@ -119,7 +119,7 @@ function getNowString() {
 //Get entries from Google Sync storage
 function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
   var id = pn_getID();
-  console.log(draft.index, ", ", draft.text, ", ", draft.date);
+  //console.log(draft.index, ", ", draft.text, ", ", draft.date);
   chrome.storage.sync.get([id], function (obj) {
     //console.log("result found");
     //console.log({ obj });
@@ -163,7 +163,7 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
         bindEntries();
       } else {
         //If the first entry was a draft, put the text from the first array item in entries (the draft) into the first entry on the page
-        console.log("First entry was a draft");
+        //console.log("First entry was a draft");
         document.querySelector("#pn_entries").innerHTML =
           `<div class="entry"><div class="date">` +
           draft.date +
@@ -213,9 +213,9 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
       draft.index = Number(draft.index) - 1;
       //Then iterate over the rest, adding them to the string
       entries.forEach((e, i) => {
-        console.log(i == draft.index, i);
+        //console.log(i == draft.index, i);
         if (i == draft.index) {
-          console.log("text: " + draft.text);
+          //console.log("text: " + draft.text);
           entryString += entryStringGen(draft, true);
         } else {
           entryString += entryStringGen(e);
@@ -231,7 +231,7 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
 
 //Generate a generic entry as an HTML string
 function entryStringGen(entry, editing = false) {
-  console.log(entry);
+  //console.log(entry);
   if (editing) {
     editing = " editing";
   } else {
@@ -264,10 +264,14 @@ function stopEditing(ev) {
         "currentDraft"
       );
       ev.currentTarget.parentElement.classList.remove("editing");
-      document.querySelector("#pn_unsaved").remove();
+      if (document.querySelector("#pn_unsaved") != null) {
+        document.querySelector("#pn_unsaved").remove();
+      }
     }
   } else {
-    document.querySelector("#pn_unsaved").remove();
+    if (document.querySelector("#pn_unsaved") != null) {
+      document.querySelector("#pn_unsaved").remove();
+    }
     ev.currentTarget.parentElement.classList.remove("editing");
   }
 }
@@ -275,7 +279,7 @@ function stopEditing(ev) {
 function prepSave(ev) {
   ev.preventDefault();
   ev.currentTarget.classList.remove("editing");
-  console.log("date: ", ev.currentTarget.parentElement.children[0].innerHTML);
+  //console.log("date: ", ev.currentTarget.parentElement.children[0].innerHTML);
   if (ev.currentTarget.parentElement.children[0].innerHTML == "Draft") {
     date = new Date(Date.now());
   } else {
@@ -286,8 +290,8 @@ function prepSave(ev) {
   var entries = ev.currentTarget.parentNode.parentNode.children;
   var index = Array.from(entries).indexOf(ev.currentTarget.parentNode);
   index = entries.length - index - 1;
-  console.log(entries.length);
-  console.log({ index });
+  //console.log(entries.length);
+  //console.log({ index });
   if (index == entries.length - 1) {
     newest = true;
   } else {
@@ -312,7 +316,7 @@ function startEditing(ev) {
 function textChanges(ev) {
   var id = pn_getID();
   var text = ev.currentTarget.value;
-  console.log({ text });
+  //console.log({ text });
   //Get the index of the current .entry item
   var index = Array.from(
     ev.currentTarget.parentElement.parentElement.parentElement.children
@@ -327,17 +331,17 @@ function entryDelete(ev) {
   var entry = ev.currentTarget.parentNode;
   var el = ev.currentTarget;
   var index = Array.from(entry.parentNode.children).indexOf(entry) - 1;
-  console.log({ index });
-  console.log(Array.from(entry.parentNode.children).indexOf(entry));
+  //console.log({ index });
+  //console.log(Array.from(entry.parentNode.children).indexOf(entry));
   if (index > -1) {
     chrome.storage.sync.get([id], function (result) {
-      console.log(result);
+      //console.log(result);
       if (typeof result[id] == "undefined") {
         obj = { notes: [] };
       } else {
         obj = JSON.parse(result[id]);
       }
-      console.log({ obj });
+      //console.log({ obj });
       obj.notes.sort(pn_dateSort);
       obj.notes.splice(index, 1);
       str = JSON.stringify(obj);
@@ -346,7 +350,7 @@ function entryDelete(ev) {
       chrome.storage.sync.set(toSave, function () {
         localStorage.removeItem(id);
         el.parentElement.remove();
-        console.log("Value is set to ", toSave);
+        //console.log("Value is set to ", toSave);
 
         //pn_getSyncStorage();
       });
@@ -378,10 +382,10 @@ function bindEntries() {
 }
 
 function pn_saveData(date, text, index, newest) {
-  console.log({ newest });
+  //console.log({ newest });
   var id = pn_getID();
   chrome.storage.sync.get([id], function (result) {
-    console.log(result);
+    //console.log(result);
     if (typeof result[id] == "undefined") {
       obj = { notes: [] };
     } else {
@@ -394,8 +398,10 @@ function pn_saveData(date, text, index, newest) {
     toSave[id] = str;
     chrome.storage.sync.set(toSave, function () {
       localStorage.removeItem(id);
-      console.log("Value is set to ", toSave);
-      document.querySelector("#pn_unsaved").remove();
+      //console.log("Value is set to ", toSave);
+      if (document.querySelector("#pn_unsaved") != null) {
+        document.querySelector("#pn_unsaved").remove();
+      }
       if (newest) {
         if (document.querySelector(".draft") != null) {
           document.querySelector(".draft .date").innerHTML = date;
@@ -427,7 +433,7 @@ function pn_addNewRow() {
 
 function pn_notify(notification) {
   if (notification == "" || Number(notification) == 0) {
-    console.log("Tried to set notification to 0 or blank: ", notification);
+    //console.log("Tried to set notification to 0 or blank: ", notification);
     document.querySelector("#pn_notification").classList.add("off");
   } else {
     document.querySelector("#pn_notification").innerHTML = notification;
