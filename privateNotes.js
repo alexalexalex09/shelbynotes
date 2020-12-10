@@ -428,6 +428,7 @@ function pn_addNewRow() {
     nowString +
     `</div><form class="pn_previewText"><textarea></textarea><input type="submit" value="Save"></input><button>Cancel</button></form>`;
   document.querySelector("#pn_entries").prepend(newEl);
+  pn_notify(document.querySelectorAll(".pn_entry").length - 1);
   bindEntries();
 }
 
