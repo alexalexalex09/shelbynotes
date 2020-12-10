@@ -157,7 +157,7 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
         //If the draft wasn't the first entry (in this case it could only be 0 or -1), initialize the first entry as a blank draft
         pn_notify("");
         document.querySelector("#pn_entries").innerHTML =
-          `<div class="draft entry"><div class="date">` +
+          `<div class="draft pn_entry"><div class="date">` +
           nowString +
           `</div><form class="pn_previewText"><textarea></textarea><input type="submit" value="Save"></input><button>Cancel</button></form></div>`;
         bindEntries();
@@ -165,7 +165,7 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
         //If the first entry was a draft, put the text from the first array item in entries (the draft) into the first entry on the page
         //console.log("First entry was a draft");
         document.querySelector("#pn_entries").innerHTML =
-          `<div class="entry"><div class="date">` +
+          `<div class="pn_entry"><div class="date">` +
           draft.date +
           `</div><form class="pn_previewText editing"><textarea>` +
           draft.text +
@@ -196,7 +196,7 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
       //if the draft entry was the first entry, put its text in the first entry
       if (Number(draft.index) == 0) {
         entryString +=
-          `<div class="draft entry"><div class="date">` +
+          `<div class="draft pn_entry"><div class="date">` +
           draft.date +
           `</div><form class="pn_previewText editing"><textarea>` +
           draft.text +
@@ -204,7 +204,7 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
       } else {
         //if not, set the first entry to be blank
         entryString +=
-          `<div class="draft entry"><div class="date">` +
+          `<div class="draft pn_entry"><div class="date">` +
           nowString +
           `</div><form class="pn_previewText"><textarea></textarea><input type="submit" value="Save"></input><button>Cancel</button></form></div>`;
       }
@@ -238,7 +238,7 @@ function entryStringGen(entry, editing = false) {
     editing = "";
   }
   return (
-    `<div class="entry"><div class="date">` +
+    `<div class="pn_entry"><div class="date">` +
     entry.date +
     `</div><form class="pn_previewText` +
     editing +
@@ -317,11 +317,11 @@ function textChanges(ev) {
   var id = pn_getID();
   var text = ev.currentTarget.value;
   //console.log({ text });
-  //Get the index of the current .entry item
+  //Get the index of the current .pn_entry item
   var index = Array.from(
     ev.currentTarget.parentElement.parentElement.parentElement.children
   ).indexOf(ev.currentTarget.parentElement.parentElement);
-  //Get the date of the current .entry item
+  //Get the date of the current .pn_entry item
   var date = ev.currentTarget.parentElement.parentElement.children[0].innerHTML;
   localStorage.setItem(id, index + "|" + date + "|" + text);
 }
@@ -351,7 +351,7 @@ function entryDelete(ev) {
         localStorage.removeItem(id);
         el.parentElement.remove();
         //console.log("Value is set to ", toSave);
-
+        pn_notify(document.querySelectorAll(".pn_entry").length - 1);
         //pn_getSyncStorage();
       });
     });
@@ -420,9 +420,9 @@ function pn_addNewRow() {
   var newDelete = document.createElement("div");
   newDelete.classList.add("pn_delete");
   newDelete.innerHTML = "x";
-  document.querySelector(".entry").append(newDelete);
+  document.querySelector(".pn_entry").append(newDelete);
   var newEl = document.createElement("div");
-  newEl.classList.add("entry");
+  newEl.classList.add("pn_entry");
   newEl.innerHTML =
     `<div class="date">` +
     nowString +
@@ -558,7 +558,7 @@ pn_style.innerHTML = `
   overflow: auto;
 }
 
-.entry {
+.pn_entry {
   display: grid;
   grid-template-columns: auto 1fr 1.5rem;
   align-items: center;
