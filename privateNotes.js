@@ -659,7 +659,7 @@ pn_style.innerHTML = `
 }
 
 #pn_noteContainer.fullscreen {
-  width: 100vh;
+  width: 100vw;
   height: 100vh;
 }
 
