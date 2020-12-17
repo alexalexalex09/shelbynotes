@@ -1,18 +1,39 @@
 //Create the main layout
-var el = `
+var el =
+  `
 <div id="pn_noteButton" onclick="pn_show()">Show Private Note</div>
 <div id="pn_notification" class="off"></div>
 <div id="pn_noteContainer" class="off">
-  <div id="pn_closeButton" onclick="pn_hide()">Close Notes</div>
-  <div id="pn_entries"></div>
-  <div id="pn_unsaved"></div>
-  <div id="pn_counter" class="off">0</counter>
-</div>
-`;
+  <div id="pn_name">` +
+  document.querySelector(".page-top-title .pg-title").innerText +
+  `</div>` +
+  `<button id="pn_fullscreen"><i class="fas fa-expand-arrows-alt"></i></button><button id="pn_exitFullscreen" class="off"><i class="fas fa-compress-arrows-alt"></i></button>` +
+  `<button id="pn_closeButton" class="pn_button" onclick="pn_hide()">Close Notes</button>` + //Note: this only works because pn_hide() doesn't need to access any functions or variables
+  `<button id="pn_exportButton" class="pn_button">Export All Notes</button>` +
+  `<div id="pn_exportButtons" class="off"> <button id="pn_hideExport" class="pn_button">Cancel Export</button>` +
+  `<button id="pn_showPrint" class="pn_button">Print</button>` +
+  `<button id="pn_download" class="pn_button">Download</button></div>` +
+  `<div id="pn_entries"></div>` +
+  `<div id="pn_unsaved"></div>` +
+  `<div id="pn_counter" class="off">0</counter>` +
+  `</div>`;
 el = `<div id="pn_container">` + el + `</div>`;
 document.body.appendChild(pn_htmlToElem(el));
+
 //Get entries from Google storage and local storage
 pn_getAllEntries();
+document.querySelector("#pn_exportButton").addEventListener("click", pn_export);
+document
+  .querySelector("#pn_hideExport")
+  .addEventListener("click", pn_hideExport);
+document.querySelector("#pn_showPrint").addEventListener("click", pn_showPrint);
+document.querySelector("#pn_download").addEventListener("click", pn_download);
+document
+  .querySelector("#pn_fullscreen")
+  .addEventListener("click", pn_fullscreen);
+document
+  .querySelector("#pn_exitFullscreen")
+  .addEventListener("click", pn_exitFullscreen);
 
 /**************/
 /* Functions  */
@@ -35,12 +56,23 @@ function pn_hide() {
   document.querySelector("#pn_noteContainer").classList.add("off");
 }
 
+function pn_fullscreen() {
+  document.querySelector("#pn_noteContainer").classList.add("fullscreen");
+  document.querySelector("#pn_fullscreen").classList.add("off");
+  document.querySelector("#pn_exitFullscreen").classList.remove("off");
+}
+
+function pn_exitFullscreen() {
+  document.querySelector("#pn_noteContainer").classList.remove("fullscreen");
+  document.querySelector("#pn_fullscreen").classList.remove("off");
+  document.querySelector("#pn_exitFullscreen").classList.add("off");
+}
+
 //get the ID string from the URL of the page
 function pn_getID() {
   var url = window.location.href;
   var id = url.substr(url.lastIndexOf("/") + 1);
   id = id.replace(/[^0-9]/, "");
-  //console.log({ id });
   return id;
 }
 
@@ -51,7 +83,6 @@ function pn_getAllEntries() {
   //uncomment to clear chrome storage
   /*chrome.storage.sync.remove(id, function () {
     localStorage.removeItem(id);
-    console.log("Value is cleared");
   });*/
   //end clear storage
 
@@ -119,11 +150,7 @@ function getNowString() {
 //Get entries from Google Sync storage
 function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
   var id = pn_getID();
-  //console.log(draft.index, ", ", draft.text, ", ", draft.date);
   chrome.storage.sync.get([id], function (obj) {
-    //console.log("result found");
-    //console.log({ obj });
-
     var nowString = getNowString();
 
     //Initialize firstEntry to false
@@ -149,8 +176,6 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
     //Now that we know if this is the first entry or not, initialize the entries
     if (firstEntry) {
       // Only remove the notification if there is no draft
-      //console.log({ entries });
-      //console.log(entries.length);
 
       if (Number(draft.index) != 0) {
         //This tests to see if we added a draft to entries in pn_getAllEntries()
@@ -163,7 +188,6 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
         bindEntries();
       } else {
         //If the first entry was a draft, put the text from the first array item in entries (the draft) into the first entry on the page
-        //console.log("First entry was a draft");
         document.querySelector("#pn_entries").innerHTML =
           `<div class="pn_entry"><div class="date">` +
           draft.date +
@@ -184,13 +208,11 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
 
       //Sort notes from Sync by date
       obj.notes.sort(pn_dateSort);
-      //console.log(entries);
       //Add sync notes to the existing draft in the draft, if any
       entries = entries.concat(obj.notes);
 
       //Create the HTML string to insert into the main area
-      //console.log({ obj });
-      //console.log(entries[0], entries[1]);
+
       var entryString = ``;
 
       //if the draft entry was the first entry, put its text in the first entry
@@ -213,9 +235,7 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
       draft.index = Number(draft.index) - 1;
       //Then iterate over the rest, adding them to the string
       entries.forEach((e, i) => {
-        //console.log(i == draft.index, i);
         if (i == draft.index) {
-          //console.log("text: " + draft.text);
           entryString += entryStringGen(draft, true);
         } else {
           entryString += entryStringGen(e);
@@ -231,7 +251,6 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
 
 //Generate a generic entry as an HTML string
 function entryStringGen(entry, editing = false) {
-  //console.log(entry);
   if (editing) {
     editing = " editing";
   } else {
@@ -263,6 +282,7 @@ function stopEditing(ev) {
       ev.currentTarget.parentElement.children[0].value = localStorage.getItem(
         "currentDraft"
       );
+      document.querySelector(".pn_previewText.editing textarea").scrollTo(0, 0);
       ev.currentTarget.parentElement.classList.remove("editing");
       if (document.querySelector("#pn_unsaved") != null) {
         document.querySelector("#pn_unsaved").remove();
@@ -272,14 +292,15 @@ function stopEditing(ev) {
     if (document.querySelector("#pn_unsaved") != null) {
       document.querySelector("#pn_unsaved").remove();
     }
+    document.querySelector(".pn_previewText.editing textarea").scrollTo(0, 0);
     ev.currentTarget.parentElement.classList.remove("editing");
   }
 }
 
 function prepSave(ev) {
   ev.preventDefault();
+  document.querySelector(".pn_previewText.editing textarea").scrollTo(0, 0);
   ev.currentTarget.classList.remove("editing");
-  //console.log("date: ", ev.currentTarget.parentElement.children[0].innerHTML);
   if (ev.currentTarget.parentElement.children[0].innerHTML == "Draft") {
     date = new Date(Date.now());
   } else {
@@ -290,8 +311,6 @@ function prepSave(ev) {
   var entries = ev.currentTarget.parentNode.parentNode.children;
   var index = Array.from(entries).indexOf(ev.currentTarget.parentNode);
   index = entries.length - index - 1;
-  //console.log(entries.length);
-  //console.log({ index });
   if (index == entries.length - 1) {
     newest = true;
   } else {
@@ -305,6 +324,42 @@ function prepSave(ev) {
   );
 }
 
+function pn_saveData(date, text, index, newest) {
+  var id = pn_getID();
+  chrome.storage.sync.get([id], function (result) {
+    if (typeof result[id] == "undefined") {
+      obj = {
+        notes: [],
+        name: document.querySelector(".page-top-title .pg-title").innerText,
+      };
+    } else {
+      obj = JSON.parse(result[id]);
+      obj.name = document.querySelector(".page-top-title .pg-title").innerText;
+    }
+    obj.notes.sort(pn_dateSort);
+    obj.notes[index] = { date: date, text: text };
+    str = JSON.stringify(obj);
+    var toSave = {};
+    toSave[id] = str;
+    chrome.storage.sync.set(toSave, function () {
+      localStorage.removeItem(id);
+      if (document.querySelector("#pn_unsaved") != null) {
+        document.querySelector("#pn_unsaved").remove();
+      }
+      if (newest) {
+        if (document.querySelector(".draft") != null) {
+          document.querySelector(".draft .date").innerHTML = date;
+          document.querySelector(".draft").classList.remove("draft");
+          document.querySelector("#pn_unsaved").remove();
+        }
+        pn_addNewRow();
+      }
+      //pn_getSyncStorage();
+    });
+  });
+  return false;
+}
+
 function startEditing(ev) {
   if (!ev.currentTarget.parentElement.classList.contains("editing")) {
     ev.currentTarget.parentElement.classList.add("editing");
@@ -316,7 +371,6 @@ function startEditing(ev) {
 function textChanges(ev) {
   var id = pn_getID();
   var text = ev.currentTarget.value;
-  //console.log({ text });
   //Get the index of the current .pn_entry item
   var index = Array.from(
     ev.currentTarget.parentElement.parentElement.parentElement.children
@@ -331,17 +385,13 @@ function entryDelete(ev) {
   var entry = ev.currentTarget.parentNode;
   var el = ev.currentTarget;
   var index = Array.from(entry.parentNode.children).indexOf(entry) - 1;
-  //console.log({ index });
-  //console.log(Array.from(entry.parentNode.children).indexOf(entry));
   if (index > -1) {
     chrome.storage.sync.get([id], function (result) {
-      //console.log(result);
       if (typeof result[id] == "undefined") {
         obj = { notes: [] };
       } else {
         obj = JSON.parse(result[id]);
       }
-      //console.log({ obj });
       obj.notes.sort(pn_dateSort);
       obj.notes.splice(index, 1);
       str = JSON.stringify(obj);
@@ -350,7 +400,6 @@ function entryDelete(ev) {
       chrome.storage.sync.set(toSave, function () {
         localStorage.removeItem(id);
         el.parentElement.remove();
-        //console.log("Value is set to ", toSave);
         pn_notify(document.querySelectorAll(".pn_entry").length - 1);
         //pn_getSyncStorage();
       });
@@ -381,40 +430,6 @@ function bindEntries() {
   });
 }
 
-function pn_saveData(date, text, index, newest) {
-  //console.log({ newest });
-  var id = pn_getID();
-  chrome.storage.sync.get([id], function (result) {
-    //console.log(result);
-    if (typeof result[id] == "undefined") {
-      obj = { notes: [] };
-    } else {
-      obj = JSON.parse(result[id]);
-    }
-    obj.notes.sort(pn_dateSort);
-    obj.notes[index] = { date: date, text: text };
-    str = JSON.stringify(obj);
-    var toSave = {};
-    toSave[id] = str;
-    chrome.storage.sync.set(toSave, function () {
-      localStorage.removeItem(id);
-      //console.log("Value is set to ", toSave);
-      if (document.querySelector("#pn_unsaved") != null) {
-        document.querySelector("#pn_unsaved").remove();
-      }
-      if (newest) {
-        if (document.querySelector(".draft") != null) {
-          document.querySelector(".draft .date").innerHTML = date;
-          document.querySelector(".draft").classList.remove("draft");
-        }
-        pn_addNewRow();
-      }
-      //pn_getSyncStorage();
-    });
-  });
-  return false;
-}
-
 function pn_addNewRow() {
   var nowString = getNowString();
   var newDelete = document.createElement("div");
@@ -434,12 +449,184 @@ function pn_addNewRow() {
 
 function pn_notify(notification) {
   if (notification == "" || Number(notification) == 0) {
-    //console.log("Tried to set notification to 0 or blank: ", notification);
     document.querySelector("#pn_notification").classList.add("off");
   } else {
     document.querySelector("#pn_notification").innerHTML = notification;
     document.querySelector("#pn_notification").classList.remove("off");
   }
+}
+
+function pn_export() {
+  document.querySelector("#pn_exportButtons").classList.remove("off");
+  document.querySelector("#pn_exportButton").classList.add("off");
+}
+
+function pn_hideExport() {
+  document.querySelector("#pn_exportButtons").classList.add("off");
+  document.querySelector("#pn_exportButton").classList.remove("off");
+}
+
+async function pn_download() {
+  pn_prepareCSV().then((csv) => {
+    pn_createCSV("shelby_private_notes.csv", csv);
+  });
+}
+
+function pn_prepareCSV() {
+  var promise = new Promise((resolve, reject) => {
+    chrome.storage.sync.get(null, function (obj) {
+      var csv = [];
+      //Look through each individual's entry
+      for (let [k, v] of Object.entries(obj)) {
+        var person = JSON.parse(v);
+        var name = "";
+
+        //Get the name, if any, or the number if the name is undefined (saved in previous version)
+        if (typeof person.name != "undefined") {
+          name = person.name;
+        } else {
+          name = k;
+        }
+
+        //If the individual has notes
+        if (typeof person.notes != "undefined") {
+          //Loop through each note and add it as a row
+          person.notes.forEach((note) => {
+            csv.push([name, note.date, note.text]);
+          });
+        }
+      }
+      resolve(csv);
+    });
+  });
+  return promise;
+}
+
+function pn_createCSV(filename, rows) {
+  var processRow = function (row) {
+    var finalVal = "";
+    for (var j = 0; j < row.length; j++) {
+      var innerValue = row[j] === null ? "" : row[j].toString();
+      if (row[j] instanceof Date) {
+        innerValue = row[j].toLocaleString();
+      }
+      var result = innerValue.replace(/"/g, '""');
+      if (result.search(/("|,|\n)/g) >= 0) result = '"' + result + '"';
+      if (j > 0) finalVal += ",";
+      finalVal += result;
+    }
+    return finalVal + "\n";
+  };
+
+  var csvFile = "";
+  for (var i = 0; i < rows.length; i++) {
+    csvFile += processRow(rows[i]);
+  }
+
+  var blob = new Blob([csvFile], { type: "text/csv;charset=utf-8;" });
+  if (navigator.msSaveBlob) {
+    // IE 10+
+    navigator.msSaveBlob(blob, filename);
+  } else {
+    var link = document.createElement("a");
+    if (link.download !== undefined) {
+      // feature detection
+      // Browsers that support HTML5 download attribute
+      var url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", filename);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  }
+}
+
+async function pn_showPrint() {
+  pn_prepareCSV().then((csv) => {
+    //Assemble the entries
+    var items = ``;
+    csv.forEach((row, i) => {
+      items +=
+        `<div class="entry"><div class="name">` +
+        row[0] +
+        `</div><div class="date">` +
+        row[1] +
+        `</div><div class="content">` +
+        row[2] +
+        `</div></div>`;
+    });
+
+    //Create the styles
+    var style = `
+    html {
+      font-family: 'Open Sans';
+    }
+
+    #print {
+      position: relative;
+      margin-top: 1rem;
+    }
+
+    #title {
+      font-size: 2rem;
+      font-weight: bold;
+    }
+
+    #noteContainer {
+      margin-top: 1rem;
+    }
+
+    .entry {
+      display: grid;
+      grid-template-columns: 12rem 1fr;
+      margin-bottom: .5rem;
+    }
+
+    .name {
+      grid-area: 1/1/2/3;
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    @media print {
+      .noPrint {
+          display:none;
+        }
+      }
+    `;
+
+    //Assemble the scripts
+    var scripts = `
+      function printThis() {
+        window.print();
+      }
+    `;
+
+    //Assemble the final page
+    var el =
+      `<html>` +
+      `<head>` +
+      `<title>Shelby Private Notes - Print View</title>` +
+      `<style>` +
+      style +
+      `</style>` +
+      `<script type="text/javascript">` +
+      scripts +
+      `</script>` +
+      `</head>` +
+      `<body>` +
+      `<div id="title">Shelby Private Notes</div>` +
+      `<button id="print" class="noPrint" onclick="printThis()">Print</button>` +
+      `<div id="noteContainer">` +
+      items +
+      `</div>` +
+      `</body>` +
+      `</html>`;
+    var printWindow = window.open();
+    printWindow.document.write(el);
+  });
 }
 
 const pn_script = document.createElement("script");
@@ -468,6 +655,12 @@ pn_style.innerHTML = `
     border-radius: 5px;
     bottom: 0;
     left: 0;
+    transition: .1s all;
+}
+
+#pn_noteContainer.fullscreen {
+  width: 100vh;
+  height: 100vh;
 }
 
 #pn_textarea {
@@ -482,6 +675,16 @@ pn_style.innerHTML = `
 
 .off {
     display:none;
+}
+
+#pn_fullscreen, #pn_exitFullscreen {
+  width: 1rem;
+  height: 1rem;
+  background-size: contain;
+  background-repeat: no-repeat;
+  border: none;
+  float: right;
+  margin-right: 5px;
 }
 
 #pn_noteButton {
@@ -500,7 +703,13 @@ pn_style.innerHTML = `
     cursor: pointer;
 }
 
-#pn_closeButton {
+#pn_name {
+  float: left;  
+  font-weight: bold;
+  text-decoration: underline;
+}
+
+.pn_button {
   text-align: right;
   color: white;
   cursor: pointer;
@@ -509,14 +718,24 @@ pn_style.innerHTML = `
   background-color: #006980;
   padding: 1px 7px;
   border-radius: 3px;
+  border: none;
   margin-bottom: 5px;
+}
+
+#pn_exportButton, #pn_showPrint, #pn_download, #pn_hideExport {
+  margin-right: 5px;
+}
+
+#pn_exportButtons {
+  transition: .5s all;
 }
 
 #pn_unsaved {
   position: absolute;
   color: red;
-  top: 3px;
   font-size: .8em;
+  bottom: 5px;
+  right: 5px;
 }
 
 #pn_discard {
@@ -561,7 +780,7 @@ pn_style.innerHTML = `
 
 .pn_entry {
   display: grid;
-  grid-template-columns: auto 1fr 1.5rem;
+  grid-template-columns: 12rem 1fr 1.5rem;
   align-items: center;
 }
 
@@ -599,6 +818,7 @@ form.pn_previewText.editing {
 .pn_previewText.editing textarea {
   height: 100%;
   grid-area: 1/1/2/4;
+  overflow: auto;
 }
 
 .pn_previewText input, .pn_previewText button {
