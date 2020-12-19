@@ -350,7 +350,9 @@ function pn_saveData(date, text, index, newest) {
         if (document.querySelector(".draft") != null) {
           document.querySelector(".draft .date").innerHTML = date;
           document.querySelector(".draft").classList.remove("draft");
-          document.querySelector("#pn_unsaved").remove();
+          if (document.querySelector("#pn_unsaved") != null) {
+            document.querySelector("#pn_unsaved").remove();
+          }
         }
         pn_addNewRow();
       }
