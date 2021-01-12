@@ -7,9 +7,9 @@ var el =
   <div id="pn_name">` +
   document.querySelector(".page-top-title .pg-title").innerText +
   `</div>` +
-  `<button id="pn_fullscreen"><i class="fas fa-expand-arrows-alt"></i></button><button id="pn_exitFullscreen" class="off"><i class="fas fa-compress-arrows-alt"></i></button>` +
   `<button id="pn_closeButton" class="pn_button" onclick="pn_hide()">Close Notes</button>` + //Note: this only works because pn_hide() doesn't need to access any functions or variables
   `<button id="pn_exportButton" class="pn_button">Export All Notes</button>` +
+  `<button id="pn_fullscreen"><i class="fas fa-expand-arrows-alt"></i></button><button id="pn_exitFullscreen" class="off"><i class="fas fa-compress-arrows-alt"></i></button>` +
   `<div id="pn_exportButtons" class="off"> <button id="pn_hideExport" class="pn_button">Cancel Export</button>` +
   `<button id="pn_showPrint" class="pn_button">Print</button>` +
   `<button id="pn_download" class="pn_button">Download</button></div>` +
@@ -22,6 +22,8 @@ document.body.appendChild(pn_htmlToElem(el));
 
 //Get entries from Google storage and local storage
 pn_getAllEntries();
+
+//Add event listeners
 document.querySelector("#pn_exportButton").addEventListener("click", pn_export);
 document
   .querySelector("#pn_hideExport")
@@ -56,12 +58,12 @@ function pn_hide() {
   document.querySelector("#pn_noteContainer").classList.add("off");
 }
 
+//Go "fullscreen" - take the whole browser window
 function pn_fullscreen() {
   document.querySelector("#pn_noteContainer").classList.add("fullscreen");
   document.querySelector("#pn_fullscreen").classList.add("off");
   document.querySelector("#pn_exitFullscreen").classList.remove("off");
 }
-
 function pn_exitFullscreen() {
   document.querySelector("#pn_noteContainer").classList.remove("fullscreen");
   document.querySelector("#pn_fullscreen").classList.remove("off");
@@ -208,6 +210,7 @@ function pn_getSyncStorage(entries, draft = { index: -1, text: "", date: "" }) {
 
       //Sort notes from Sync by date
       obj.notes.sort(pn_dateSort);
+
       //Add sync notes to the existing draft in the draft, if any
       entries = entries.concat(obj.notes);
 
@@ -310,54 +313,65 @@ function prepSave(ev) {
   ev.currentTarget.parentElement.classList.remove("editing");
   var entries = ev.currentTarget.parentNode.parentNode.children;
   var index = Array.from(entries).indexOf(ev.currentTarget.parentNode);
+  //Reverse the index number so that the newest entry is stored last in Chrome
   index = entries.length - index - 1;
-  if (index == entries.length - 1) {
-    newest = true;
+  //If the index was 0, i.e., if we're saving a draft here:
+  if (index == 0) {
+    isDraft = true;
   } else {
-    newest = false;
+    isDraft = false;
   }
-  return pn_saveData(
-    dateString,
-    ev.currentTarget.children[0].value,
-    index,
-    newest
-  );
+  return pn_saveData(dateString, isDraft);
 }
 
-function pn_saveData(date, text, index, newest) {
-  var id = pn_getID();
-  chrome.storage.sync.get([id], function (result) {
-    if (typeof result[id] == "undefined") {
-      obj = {
-        notes: [],
-        name: document.querySelector(".page-top-title .pg-title").innerText,
-      };
-    } else {
-      obj = JSON.parse(result[id]);
-      obj.name = document.querySelector(".page-top-title .pg-title").innerText;
+function createNotesArray() {
+  var notes = [];
+  document.querySelectorAll(".pn_entry").forEach((el, index) => {
+    //Don't push the draft, unless it contains text
+    if (
+      !el.classList.contains("draft") ||
+      el.querySelector("textarea").value != ""
+    ) {
+      notes.push({
+        date: el.querySelector(".date").innerHTML,
+        text: el.querySelector("textarea").value,
+      });
     }
-    obj.notes.sort(pn_dateSort);
-    obj.notes[index] = { date: date, text: text };
-    str = JSON.stringify(obj);
-    var toSave = {};
-    toSave[id] = str;
-    chrome.storage.sync.set(toSave, function () {
-      localStorage.removeItem(id);
-      if (document.querySelector("#pn_unsaved") != null) {
-        document.querySelector("#pn_unsaved").remove();
-      }
-      if (newest) {
-        if (document.querySelector(".draft") != null) {
-          document.querySelector(".draft .date").innerHTML = date;
-          document.querySelector(".draft").classList.remove("draft");
-          if (document.querySelector("#pn_unsaved") != null) {
-            document.querySelector("#pn_unsaved").remove();
-          }
+  });
+  return notes;
+}
+
+function pn_saveData(date, isDraft) {
+  //Get the person's ID
+  var id = pn_getID();
+  //Get their record from Chrome storage
+
+  //Create the object to save from current notes
+  obj = {};
+  //Update the name
+  obj.name = document.querySelector(".page-top-title .pg-title").innerText;
+  obj.notes = createNotesArray();
+  str = JSON.stringify(obj);
+  var toSave = {};
+  toSave[id] = str;
+
+  //Upload the object to Chrome storage
+  chrome.storage.sync.set(toSave, function () {
+    localStorage.removeItem(id);
+    if (document.querySelector("#pn_unsaved") != null) {
+      document.querySelector("#pn_unsaved").remove();
+    }
+    if (isDraft) {
+      if (document.querySelector(".draft") != null) {
+        document.querySelector(".draft .date").innerHTML = date;
+        document.querySelector(".draft").classList.remove("draft");
+        if (document.querySelector("#pn_unsaved") != null) {
+          document.querySelector("#pn_unsaved").remove();
         }
-        pn_addNewRow();
       }
-      //pn_getSyncStorage();
-    });
+      pn_addNewRow();
+    }
+    //pn_getSyncStorage();
   });
   return false;
 }
@@ -421,9 +435,11 @@ function bindEntries() {
     e.addEventListener("submit", prepSave);
   });
   document.querySelectorAll(".pn_previewText textarea").forEach((e) => {
-    e.removeEventListener("click", startEditing);
+    e.removeEventListener("mousedown", startEditing);
+    e.removeEventListener("focus", startEditing);
     e.removeEventListener("input", textChanges);
-    e.addEventListener("click", startEditing);
+    e.addEventListener("mousedown", startEditing);
+    e.addEventListener("focus", startEditing);
     e.addEventListener("input", textChanges);
   });
   document.querySelectorAll(".pn_delete").forEach((e) => {
@@ -686,7 +702,7 @@ pn_style.innerHTML = `
   background-repeat: no-repeat;
   border: none;
   float: right;
-  margin-right: 5px;
+  margin-right: 10px;
 }
 
 #pn_noteButton {
