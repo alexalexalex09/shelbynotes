@@ -9,10 +9,10 @@ var el =
   `</div>` +
   `<button id="pn_closeButton" class="pn_button" onclick="pn_hide()">Close Notes</button>` + //Note: this only works because pn_hide() doesn't need to access any functions or variables
   `<button id="pn_exportButton" class="pn_button">Export All Notes</button>` +
-  `<button id="pn_fullscreen"><i class="fas fa-expand-arrows-alt"></i></button><button id="pn_exitFullscreen" class="off"><i class="fas fa-compress-arrows-alt"></i></button>` +
   `<div id="pn_exportButtons" class="off"> <button id="pn_hideExport" class="pn_button">Cancel Export</button>` +
   `<button id="pn_showPrint" class="pn_button">Print</button>` +
   `<button id="pn_download" class="pn_button">Download</button></div>` +
+  `<button id="pn_fullscreen"><i class="fas fa-expand-arrows-alt"></i></button><button id="pn_exitFullscreen" class="off"><i class="fas fa-compress-arrows-alt"></i></button>` +
   `<div id="pn_entries"></div>` +
   `<div id="pn_unsaved"></div>` +
   `<div id="pn_counter" class="off">0</counter>` +
@@ -313,9 +313,7 @@ function prepSave(ev) {
   ev.currentTarget.parentElement.classList.remove("editing");
   var entries = ev.currentTarget.parentNode.parentNode.children;
   var index = Array.from(entries).indexOf(ev.currentTarget.parentNode);
-  //Reverse the index number so that the newest entry is stored last in Chrome
-  index = entries.length - index - 1;
-  //If the index was 0, i.e., if we're saving a draft here:
+  //If the index is 0, i.e., if we're saving a draft here:
   if (index == 0) {
     isDraft = true;
   } else {
